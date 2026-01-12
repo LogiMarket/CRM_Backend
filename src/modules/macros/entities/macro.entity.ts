@@ -1,4 +1,4 @@
-import {
+﻿import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -6,13 +6,10 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('macros')
-@Index(['created_by_id'])
-@Index(['shortcut'], { unique: true })
 export class Macro {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -24,7 +21,7 @@ export class Macro {
   content: string;
 
   @Column({ type: 'varchar', length: 50, unique: true })
-  shortcut: string; // e.g., "!saludo", "!gracias"
+  shortcut: string;
 
   @Column({ type: 'uuid' })
   created_by_id: string;
@@ -41,9 +38,7 @@ export class Macro {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @ManyToOne(() => User, (user) => user.created_macros, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => User, (user) => user.created_macros)
   @JoinColumn({ name: 'created_by_id' })
   created_by: User;
 }

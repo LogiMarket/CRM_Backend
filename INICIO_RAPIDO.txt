@@ -1,0 +1,70 @@
+﻿ INICIO RÁPIDO (30 SEGUNDOS)
+
+
+SOLO ESTOS 3 PASOS:
+
+1 EN TERMINAL 1:
+   cd C:\Users\Bryan Mejía\OneDrive - LOGIMARKET\Documentos\Repositorios\CRM\backend
+   docker-compose up -d
+
+2 EN TERMINAL 2:
+   cd backend
+   npm run start:dev
+
+3 EN TERMINAL 3:
+   cd C:\Users\Bryan Mejía\OneDrive - LOGIMARKET\Documentos\Repositorios\internal-chat-mvp
+   npm run dev
+
+ LISTO! Abre http://localhost:3000
+
+
+
+ ANTES DE INICIAR (IMPORTANTE):
+
+  OPCIÓN A: Si es PRIMERA VEZ
+    - Abre backend/.env.local y copia desde .env.example
+    - Rellena: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+    - Luego ejecuta los 3 pasos arriba
+
+ OPCIÓN B: Si ya tienes todo configurado
+    - Solo ejecuta los 3 pasos (backend arranca automáticamente)
+
+
+
+ SI NO FUNCIONA:
+
+ Error: Port 3001 already in use
+    netstat -ano | findstr :3001
+    taskkill /PID XXXXX /F
+
+ Error: PostgreSQL no conecta
+    docker-compose ps
+    Si status no es "Up": docker-compose down && docker-compose up -d
+
+ Error: "npm: command not found"
+    Necesitas instalar Node.js desde nodejs.org
+
+
+
+ CUANDO FUNCIONE:
+
+Backend: http://localhost:3001/api/contacts
+Frontend: http://localhost:3000
+Base de Datos: localhost:5432 (postgres / postgres)
+
+Todo está listo para:
+ Crear contactos
+ Iniciar conversaciones  
+ Enviar/recibir mensajes vía Twilio
+ Registrar órdenes
+ Usar respuestas rápidas (macros)
+ Etiquetar conversaciones
+
+
+
+ LEER ESTO SI NECESITAS MÁS DETALLES:
+    backend/SETUP_FINAL.md
+    backend/CHECKLIST.md
+    backend/RESUMEN_FINAL.txt
+
+

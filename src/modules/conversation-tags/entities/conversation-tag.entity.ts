@@ -1,17 +1,14 @@
-import {
+﻿import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { Conversation } from '../../conversations/entities/conversation.entity';
 
 @Entity('conversation_tags')
-@Index(['conversation_id'])
-@Index(['tag'])
 export class ConversationTag {
   @PrimaryGeneratedColumn('uuid')
   id: string;

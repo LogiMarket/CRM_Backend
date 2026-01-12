@@ -1,4 +1,4 @@
-import {
+﻿import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -7,7 +7,6 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { Contact } from '../../contacts/entities/contact.entity';
 import { User } from '../../users/entities/user.entity';
@@ -15,8 +14,6 @@ import { Message } from '../../messages/entities/message.entity';
 import { ConversationTag } from '../../conversation-tags/entities/conversation-tag.entity';
 
 @Entity('conversations')
-@Index(['contact_id'])
-@Index(['assigned_agent_id'])
 export class Conversation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -44,7 +41,7 @@ export class Conversation {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   last_message_at: Date;
 
   @CreateDateColumn()
@@ -53,15 +50,12 @@ export class Conversation {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @ManyToOne(() => Contact, (contact) => contact.conversations, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => Contact, (contact) => contact.conversations)
   @JoinColumn({ name: 'contact_id' })
   contact: Contact;
 
   @ManyToOne(() => User, (user) => user.assigned_conversations, {
     nullable: true,
-    onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'assigned_agent_id' })
   assigned_agent: User;

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -6,14 +6,11 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { Conversation } from '../../conversations/entities/conversation.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('messages')
-@Index(['conversation_id'])
-@Index(['sender_id'])
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -21,10 +18,7 @@ export class Message {
   @Column({ type: 'uuid' })
   conversation_id: string;
 
-  @Column({
-    type: 'enum',
-    enum: ['user', 'contact'],
-  })
+  @Column({ type: 'varchar', length: 50 })
   sender_type: 'user' | 'contact';
 
   @Column({ type: 'uuid', nullable: true })
@@ -44,12 +38,12 @@ export class Message {
   is_from_whatsapp: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  whatsapp_message_id: string; // Twilio message SID
+  whatsapp_message_id: string;
 
   @Column({ type: 'boolean', default: false })
   is_read: boolean;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   read_at: Date;
 
   @CreateDateColumn()
@@ -58,16 +52,11 @@ export class Message {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @ManyToOne(() => Conversation, (conv) => conv.messages, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => Conversation, (conv) => conv.messages)
   @JoinColumn({ name: 'conversation_id' })
   conversation: Conversation;
 
-  @ManyToOne(() => User, (user) => user.sent_messages, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
+  @ManyToOne(() => User, (user) => user.sent_messages, { nullable: true })
   @JoinColumn({ name: 'sender_id' })
   sender: User;
 }

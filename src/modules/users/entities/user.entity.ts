@@ -5,10 +5,13 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Conversation } from '../../conversations/entities/conversation.entity';
 import { Message } from '../../messages/entities/message.entity';
 import { Macro } from '../../macros/entities/macro.entity';
+import { Role } from '../../roles/entities/role.entity';
 
 @Entity('users')
 export class User {
@@ -24,12 +27,12 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({
-    type: 'enum',
-    enum: ['admin', 'agent', 'supervisor'],
-    default: 'agent',
-  })
-  role: 'admin' | 'agent' | 'supervisor';
+  @Column({ type: 'uuid', nullable: true })
+  role_id: string;
+
+  @ManyToOne(() => Role, (role) => role.users)
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   avatar_url: string;
@@ -56,3 +59,4 @@ export class User {
   @OneToMany(() => Macro, (macro) => macro.created_by)
   created_macros: Macro[];
 }
+
