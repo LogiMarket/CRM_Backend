@@ -16,7 +16,7 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Hash password
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    
+
     const user = this.usersRepository.create({
       email: createUserDto.email,
       password_hash: hashedPassword,
@@ -29,6 +29,7 @@ export class UsersService {
 
   async findAll(): Promise<User[]> {
     return this.usersRepository.find({
+      relations: ['role'],
       select: {
         id: true,
         name: true,
@@ -47,6 +48,7 @@ export class UsersService {
         name: true,
         email: true,
         role_id: true,
+        status: true,
         created_at: true,
       },
     });
@@ -55,6 +57,7 @@ export class UsersService {
   async findOne(id: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { id },
+      relations: ['role'],
       select: {
         id: true,
         name: true,
@@ -72,6 +75,14 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { email },
+      relations: ['role'],
+    });
+  }
+
+  async findByEmailWithRole(email: string): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { email },
+      relations: ['role'],
     });
   }
 
@@ -102,10 +113,6 @@ export class UsersService {
 
   async delete(id: string): Promise<void> {
     await this.usersRepository.delete(id);
-  }
-
-  async remove(id: string): Promise<void> {
-    await this.delete(id);
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {

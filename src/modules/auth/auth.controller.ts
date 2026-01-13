@@ -3,7 +3,6 @@ import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
-import { hash } from 'bcryptjs';
 
 @ApiTags('Auth - Autenticación')
 @Controller('auth')
@@ -53,9 +52,16 @@ export class AuthController {
         role_id: null, // Por defecto sin rol, se asigna después
       });
 
-      // Generar token JWT
+      // Cargar usuario con rol
+      const userWithRole = await this.usersService.findByEmailWithRole(user.email);
+
+      // Generar token JWT con rol
       const token = this.jwtService.sign(
-        { email: user.email, sub: user.id },
+        { 
+          email: userWithRole.email, 
+          sub: userWithRole.id,
+          role: userWithRole.role?.name || 'agent',
+        },
         { expiresIn: '7d' },
       );
 
@@ -65,9 +71,10 @@ export class AuthController {
         token_type: 'Bearer',
         expires_in: '7d',
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
+          id: userWithRole.id,
+          email: userWithRole.email,
+          name: userWithRole.name,
+          role: userWithRole.role?.name || null,
         },
       };
     } catch (error: any) {
@@ -95,17 +102,22 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Login exitoso. Retorna JWT token.',
+    description: 'Login exitoso. Retorna JWT token con información del usuario.',
     schema: {
       type: 'object',
       properties: {
-        access_token: {
-          type: 'string',
-          example:
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
-        },
+        access_token: { type: 'string' },
         token_type: { type: 'string', example: 'Bearer' },
         expires_in: { type: 'string', example: '7d' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            email: { type: 'string' },
+            name: { type: 'string' },
+            role: { type: 'string', example: 'admin' },
+          },
+        },
       },
     },
   })
@@ -115,8 +127,8 @@ export class AuthController {
   })
   async login(@Body() body: { email: string; password: string }) {
     try {
-      // Buscar usuario por email
-      const user: User = await this.usersService.findByEmail(body.email);
+      // Buscar usuario por email con rol
+      const user: User = await this.usersService.findByEmailWithRole(body.email);
       if (!user) {
         throw new BadRequestException('Email o contraseña inválidos');
       }
@@ -127,9 +139,13 @@ export class AuthController {
         throw new BadRequestException('Email o contraseña inválidos');
       }
 
-      // Generar token JWT
+      // Generar token JWT con información del rol
       const token = this.jwtService.sign(
-        { email: user.email, sub: user.id },
+        { 
+          email: user.email, 
+          sub: user.id,
+          role: user.role?.name || 'agent',
+        },
         { expiresIn: '7d' },
       );
 
@@ -137,6 +153,13 @@ export class AuthController {
         access_token: token,
         token_type: 'Bearer',
         expires_in: '7d',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role?.name || null,
+          role_id: user.role_id,
+        },
       };
     } catch (error: any) {
       throw new BadRequestException(error.message || 'Error al iniciar sesión');
@@ -166,7 +189,7 @@ export class AuthController {
   })
   generateTestToken() {
     const token = this.jwtService.sign(
-      { email: 'test@example.com', sub: 'test-user' },
+      { email: 'test@example.com', sub: 'test-user', role: 'admin' },
       { expiresIn: '7d' },
     );
 
