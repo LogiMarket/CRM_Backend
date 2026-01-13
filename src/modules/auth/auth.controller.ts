@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { hash } from 'bcryptjs';
 
 @ApiTags('Auth - Autenticación')
 @Controller('auth')
@@ -45,10 +46,12 @@ export class AuthController {
         throw new BadRequestException('El email ya está registrado');
       }
 
-      // Crear nuevo usuario
+      // Hash password before saving
+      const hashedPassword = await hash(body.password, 10);
+
       const user: User = await this.usersService.create({
         email: body.email,
-        password: body.password,
+        password: hashedPassword,
         name: body.name,
       });
 
