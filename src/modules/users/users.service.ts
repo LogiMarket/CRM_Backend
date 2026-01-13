@@ -14,13 +14,17 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
+    // Hash password
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    
     const user = this.usersRepository.create({
       email: createUserDto.email,
-      password_hash: createUserDto.password_hash,
-      name: createUserDto.name || createUserDto.email.split('@')[0],
+      password_hash: hashedPassword,
+      name: createUserDto.full_name,
+      role_id: createUserDto.role_id,
+      status: 'offline',
     });
-    const savedUser = await this.usersRepository.save(user);
-    return savedUser;
+    return await this.usersRepository.save(user);
   }
 
   async findAll(): Promise<User[]> {
@@ -30,6 +34,19 @@ export class UsersService {
         name: true,
         email: true,
         role: true,
+        created_at: true,
+      },
+    });
+  }
+
+  async findAgents(): Promise<User[]> {
+    return this.usersRepository.find({
+      relations: ['role'],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role_id: true,
         created_at: true,
       },
     });
@@ -64,14 +81,11 @@ export class UsersService {
     if (updateUserDto.email !== undefined) {
       updateData.email = updateUserDto.email;
     }
-    if (updateUserDto.password !== undefined) {
-      updateData.password_hash = updateUserDto.password;
+    if (updateUserDto.full_name !== undefined) {
+      updateData.name = updateUserDto.full_name;
     }
-    if (updateUserDto.name !== undefined) {
-      updateData.name = updateUserDto.name;
-    }
-    if (updateUserDto.role !== undefined) {
-      updateData.role = updateUserDto.role;
+    if (updateUserDto.role_id !== undefined) {
+      updateData.role_id = updateUserDto.role_id;
     }
 
     await this.usersRepository.update(id, updateData);

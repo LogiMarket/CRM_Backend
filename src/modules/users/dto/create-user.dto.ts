@@ -5,13 +5,11 @@ export class CreateUserDto {
   email: string;
 
   @IsString()
-  password_hash: string;
+  password: string;
 
-  @IsOptional()
   @IsString()
-  name?: string;
+  full_name: string;
 
-  @IsOptional()
-  @IsEnum(['admin', 'agent', 'supervisor'])
-  role?: string;
+  @IsString()
+  role_id: string;
 }

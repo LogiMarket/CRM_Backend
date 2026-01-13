@@ -37,6 +37,21 @@ export class ConversationsService {
     });
   }
 
+  async findByAssignedAgent(agentId: string) {
+    return this.conversationRepository.find({
+      where: { assigned_agent_id: agentId },
+      relations: ['contact', 'assigned_agent', 'messages'],
+      order: { updated_at: 'DESC' },
+    });
+  }
+
+  async assignAgent(conversationId: string, agentId: string) {
+    await this.conversationRepository.update(conversationId, {
+      assigned_agent_id: agentId,
+    });
+    return this.findOne(conversationId);
+  }
+
   async update(id: string, updateConversationDto: UpdateConversationDto) {
     const updateData = this.conversationRepository.create(updateConversationDto as any);
     await this.conversationRepository.update(id, updateData as any);

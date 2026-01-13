@@ -46,13 +46,11 @@ export class AuthController {
         throw new BadRequestException('El email ya está registrado');
       }
 
-      // Hash password before saving
-      const hashedPassword = await hash(body.password, 10);
-
       const user: User = await this.usersService.create({
         email: body.email,
-        password_hash: hashedPassword,
-        name: body.name,
+        password: body.password,
+        full_name: body.name || body.email.split('@')[0],
+        role_id: null, // Por defecto sin rol, se asigna después
       });
 
       // Generar token JWT
