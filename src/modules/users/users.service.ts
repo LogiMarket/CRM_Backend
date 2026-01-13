@@ -16,7 +16,7 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = this.usersRepository.create({
       email: createUserDto.email,
-      password_hash: createUserDto.password,
+      password_hash: createUserDto.password_hash,
       name: createUserDto.name || createUserDto.email.split('@')[0],
     });
     const savedUser = await this.usersRepository.save(user);
@@ -95,6 +95,6 @@ export class UsersService {
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {
-    return bcrypt.compare(password, user.password_hash);
+    return await bcrypt.compare(password, user.password_hash);
   }
 }

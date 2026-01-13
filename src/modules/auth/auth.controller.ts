@@ -51,7 +51,7 @@ export class AuthController {
 
       const user: User = await this.usersService.create({
         email: body.email,
-        password: hashedPassword,
+        password_hash: hashedPassword,
         name: body.name,
       });
 
