@@ -40,15 +40,27 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User does not have a role');
     }
 
+    // Normalizar rol del usuario (aceptar español e inglés)
+    const normalizeRole = (role: string): string => {
+      const normalized = role.toLowerCase();
+      if (normalized.startsWith('admin')) return 'admin';
+      if (normalized.startsWith('super')) return 'supervisor';
+      if (normalized.startsWith('agente') || normalized.startsWith('agent')) return 'agent';
+      return normalized;
+    };
+
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedRequiredRoles = requiredRoles.map(normalizeRole);
+
     // Check if user role is in the required roles
-    const hasRole = requiredRoles.includes(userRole);
+    const hasRole = normalizedRequiredRoles.includes(normalizedUserRole);
 
     if (!hasRole) {
       this.logger.warn(
-        `User ${user.id} with role '${userRole}' tried to access resource requiring roles: ${requiredRoles.join(', ')}`,
+        `User ${user.id} with role '${userRole}' (normalized: '${normalizedUserRole}') tried to access resource requiring roles: ${requiredRoles.join(', ')} (normalized: ${normalizedRequiredRoles.join(', ')})`,
       );
       throw new ForbiddenException(
-        `User role '${userRole}' does not have access to this resource. Required roles: ${requiredRoles.join(', ')}`,
+        `User role '${normalizedUserRole}' does not have access to this resource. Required roles: ${normalizedRequiredRoles.join(', ')}`,
       );
     }
 
