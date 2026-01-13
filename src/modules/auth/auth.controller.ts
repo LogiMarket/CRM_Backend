@@ -58,15 +58,24 @@ export class AuthController {
           role_id: agentRole?.id || null,
       });
 
-      // Cargar usuario con rol
+        // Cargar usuario con rol
       const userWithRole = await this.usersService.findByEmailWithRole(user.email);
 
-      // Generar token JWT con rol
+        // Normalizar rol para JWT ('admin' | 'supervisor' | 'agent')
+        const normalizeRole = (name?: string) => {
+          const n = (name || '').toLowerCase();
+          if (n.startsWith('admin')) return 'admin';
+          if (n.startsWith('super')) return 'supervisor';
+          if (n.startsWith('agente') || n.startsWith('agent')) return 'agent';
+          return 'agent';
+        };
+
+        // Generar token JWT con rol
       const token = this.jwtService.sign(
         { 
           email: userWithRole.email, 
           sub: userWithRole.id,
-          role: userWithRole.role?.name || 'agent',
+            role: normalizeRole(userWithRole.role?.name),
         },
         { expiresIn: '7d' },
       );
@@ -146,11 +155,19 @@ export class AuthController {
       }
 
       // Generar token JWT con información del rol
+      const normalizeRole = (name?: string) => {
+        const n = (name || '').toLowerCase();
+        if (n.startsWith('admin')) return 'admin';
+        if (n.startsWith('super')) return 'supervisor';
+        if (n.startsWith('agente') || n.startsWith('agent')) return 'agent';
+        return 'agent';
+      };
+
       const token = this.jwtService.sign(
         { 
           email: user.email, 
           sub: user.id,
-          role: user.role?.name || 'agent',
+          role: normalizeRole(user.role?.name),
         },
         { expiresIn: '7d' },
       );
