@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -18,6 +18,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Roles } from '../../decorators/roles.decorator';
 import { UsersService } from './users.service';
 
 class CreateUserDto {
@@ -91,6 +92,26 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('agents')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Roles('admin', 'supervisor')
+  @ApiOperation({
+    summary: 'Listar agentes',
+    description: 'Obtiene la lista de agentes (solo admin y supervisor)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de agentes obtenida',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - solo admin y supervisor',
+  })
+  async getAgents() {
+    return this.usersService.findAgents();
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -139,10 +160,11 @@ export class UsersController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Roles('admin')
   @HttpCode(201)
   @ApiOperation({
     summary: 'Crear usuario',
-    description: 'Registra un nuevo usuario/agente en el sistema.',
+    description: 'Registra un nuevo usuario/agente en el sistema (solo admin).',
   })
   @ApiBody({
     schema: {
@@ -164,6 +186,10 @@ export class UsersController {
     status: 409,
     description: 'El email ya está registrado',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - solo admin',
+  })
   async createUser(@Body() body: CreateUserDto) {
     return this.usersService.create(body);
   }
@@ -171,6 +197,7 @@ export class UsersController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Roles('admin', 'supervisor')
   @ApiOperation({
     summary: 'Actualizar usuario',
     description: 'Actualiza los datos de un usuario existente.',
@@ -193,6 +220,7 @@ export class UsersController {
   })
   @ApiResponse({ status: 200, description: 'Usuario actualizado' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  @ApiResponse({ status: 403, description: 'Acceso denegado' })
   async updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
     return this.usersService.update(id, body);
   }
@@ -226,14 +254,16 @@ export class UsersController {
   @Delete(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Roles('admin')
   @HttpCode(204)
   @ApiOperation({
     summary: 'Eliminar usuario',
-    description: 'Elimina un usuario del sistema.',
+    description: 'Elimina un usuario del sistema (solo admin).',
   })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({ status: 204, description: 'Usuario eliminado' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  @ApiResponse({ status: 403, description: 'Acceso denegado' })
   async deleteUser(@Param('id') id: string) {
     await this.usersService.delete(id);
   }

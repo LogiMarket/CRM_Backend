@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common'
+﻿import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
+import { APP_GUARD } from '@nestjs/core'
+import { RolesGuard } from './guards/roles.guard'
 import { AuthModule } from './modules/auth/auth.module'
 import { UsersModule } from './modules/users/users.module'
 import { RolesModule } from './modules/roles/roles.module'
@@ -23,7 +25,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module'
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        // ✅ Prioriza Railway DATABASE_URL
+        //  Prioriza Railway DATABASE_URL
         const databaseUrl = configService.get<string>('DATABASE_URL')
 
         const synchronize = configService.get<string>('DATABASE_SYNCHRONIZE') === 'true'
@@ -44,7 +46,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module'
           }
         }
 
-        // ✅ Fallback: variables separadas (por si aún las usas)
+        //  Fallback: variables separadas (por si aún las usas)
         const host = configService.get<string>('DATABASE_HOST')
         const port = parseInt(configService.get<string>('DATABASE_PORT') || '5432', 10)
         const username = configService.get<string>('DATABASE_USER')
@@ -79,6 +81,11 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module'
     WhatsappModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
 export class AppModule {}
