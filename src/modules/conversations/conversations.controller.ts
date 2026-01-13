@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -16,7 +16,7 @@ import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../../decorators/roles.decorator';
 
-@Controller('api/conversations')
+@Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
@@ -81,3 +81,4 @@ export class ConversationsController {
     return this.conversationsService.remove(id);
   }
 }
+
