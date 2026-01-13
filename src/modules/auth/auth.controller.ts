@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { RolesService } from '../roles/roles.service';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Auth - Autenticación')
@@ -11,6 +12,7 @@ export class AuthController {
   constructor(
     private jwtService: JwtService,
     @Inject(UsersService) private usersService: UsersService,
+    @Inject(RolesService) private rolesService: RolesService,
   ) {}
 
   @Post('signup')
@@ -46,11 +48,14 @@ export class AuthController {
         throw new BadRequestException('El email ya está registrado');
       }
 
-      const user: User = await this.usersService.create({
+        // Rol por defecto: Agente
+        const agentRole = await this.rolesService.findByName('Agente');
+
+        const user: User = await this.usersService.create({
         email: body.email,
         password: body.password,
         full_name: body.name || body.email.split('@')[0],
-        role_id: null, // Por defecto sin rol, se asigna después
+          role_id: agentRole?.id || null,
       });
 
       // Cargar usuario con rol
