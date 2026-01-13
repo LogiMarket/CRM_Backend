@@ -22,14 +22,12 @@ export class ConversationsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor')
   create(@Body(ValidationPipe) createConversationDto: CreateConversationDto) {
     return this.conversationsService.create(createConversationDto);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor', 'agent')
   findAll(@Req() request: any) {
     const user = request.user;
     const userRole = user?.role;
@@ -42,21 +40,18 @@ export class ConversationsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor', 'agent')
   findOne(@Param('id') id: string) {
     return this.conversationsService.findOne(id);
   }
 
   @Get('contact/:contactId')
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor', 'agent')
   findByContact(@Param('contactId') contactId: string) {
     return this.conversationsService.findByContact(contactId);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor')
   update(
     @Param('id') id: string,
     @Body(ValidationPipe) updateConversationDto: UpdateConversationDto,
@@ -66,7 +61,6 @@ export class ConversationsController {
 
   @Post(':id/assign')
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor', 'agent')
   assignAgent(
     @Param('id') id: string,
     @Body() body: { agent_id: string },
@@ -76,9 +70,9 @@ export class ConversationsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  @Roles('admin')
   remove(@Param('id') id: string) {
     return this.conversationsService.remove(id);
   }
 }
+
 
