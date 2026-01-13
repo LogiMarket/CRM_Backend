@@ -1,8 +1,9 @@
-﻿import { Controller, Post, Body, HttpCode, BadRequestException, Inject } from '@nestjs/common';
+﻿import { Controller, Post, Get, Body, HttpCode, BadRequestException, Inject, UseGuards, Request } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Auth - Autenticación')
 @Controller('auth')
@@ -164,6 +165,49 @@ export class AuthController {
     } catch (error: any) {
       throw new BadRequestException(error.message || 'Error al iniciar sesión');
     }
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Obtener información del usuario actual',
+    description: 'Retorna la información del usuario autenticado basado en el JWT token.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Información del usuario',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        email: { type: 'string' },
+        name: { type: 'string' },
+        role: { type: 'string' },
+        role_id: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token inválido o expirado',
+  })
+  async getMe(@Request() req) {
+    // El usuario viene del JWT strategy
+    const userId = req.user.sub;
+    const user = await this.usersService.findByEmailWithRole(req.user.email);
+    
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role?.name || null,
+      role_id: user.role_id,
+    };
   }
 
   @Post('test-token')
