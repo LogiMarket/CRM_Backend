@@ -1,16 +1,16 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
-import { RolesModule } from './modules/roles/roles.module';
-import { ContactsModule } from './modules/contacts/contacts.module';
-import { ConversationsModule } from './modules/conversations/conversations.module';
-import { MessagesModule } from './modules/messages/messages.module';
-import { OrdersModule } from './modules/orders/orders.module';
-import { MacrosModule } from './modules/macros/macros.module';
-import { ConversationTagsModule } from './modules/conversation-tags/conversation-tags.module';
-import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { Module } from '@nestjs/common'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { AuthModule } from './modules/auth/auth.module'
+import { UsersModule } from './modules/users/users.module'
+import { RolesModule } from './modules/roles/roles.module'
+import { ContactsModule } from './modules/contacts/contacts.module'
+import { ConversationsModule } from './modules/conversations/conversations.module'
+import { MessagesModule } from './modules/messages/messages.module'
+import { OrdersModule } from './modules/orders/orders.module'
+import { MacrosModule } from './modules/macros/macros.module'
+import { ConversationTagsModule } from './modules/conversation-tags/conversation-tags.module'
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module'
 
 @Module({
   imports: [
@@ -18,24 +18,55 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST'),
-        port: parseInt(configService.get('DATABASE_PORT') || '5432', 10),
-        username: configService.get('DATABASE_USER'),
-        password: configService.get('DATABASE_PASSWORD'),
-        database: configService.get('DATABASE_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('DATABASE_SYNCHRONIZE') === 'true',
-        logging: configService.get('DATABASE_LOGGING') === 'true',
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      }),
       inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        // ✅ Prioriza Railway DATABASE_URL
+        const databaseUrl = configService.get<string>('DATABASE_URL')
+
+        const synchronize = configService.get<string>('DATABASE_SYNCHRONIZE') === 'true'
+        const logging = configService.get<string>('DATABASE_LOGGING') === 'true'
+
+        // Railway/Postgres administrado suele requerir SSL/TLS
+        const sslConfig = { rejectUnauthorized: false as const }
+
+        if (databaseUrl && databaseUrl.trim().length > 0) {
+          return {
+            type: 'postgres' as const,
+            url: databaseUrl,
+            entities: [__dirname + '/**/*.entity{.ts,.js}'],
+            synchronize,
+            logging,
+            ssl: sslConfig,
+            extra: { ssl: sslConfig },
+          }
+        }
+
+        // ✅ Fallback: variables separadas (por si aún las usas)
+        const host = configService.get<string>('DATABASE_HOST')
+        const port = parseInt(configService.get<string>('DATABASE_PORT') || '5432', 10)
+        const username = configService.get<string>('DATABASE_USER')
+        const password = configService.get<string>('DATABASE_PASSWORD')
+        const database = configService.get<string>('DATABASE_NAME')
+
+        return {
+          type: 'postgres' as const,
+          host,
+          port,
+          username,
+          password,
+          database,
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          synchronize,
+          logging,
+          ssl: sslConfig,
+          extra: { ssl: sslConfig },
+        }
+      },
     }),
+
     AuthModule,
     RolesModule,
     UsersModule,
