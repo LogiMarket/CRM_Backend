@@ -95,18 +95,13 @@ export class UsersController {
   @Get('agents')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Roles('admin', 'supervisor')
   @ApiOperation({
     summary: 'Listar agentes',
-    description: 'Obtiene la lista de agentes (solo admin y supervisor)',
+    description: 'Obtiene la lista de agentes (requiere autenticación)',
   })
   @ApiResponse({
     status: 200,
     description: 'Lista de agentes obtenida',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Acceso denegado - solo admin y supervisor',
   })
   async getAgents() {
     return this.usersService.findAgents();
