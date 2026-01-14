@@ -103,8 +103,6 @@ export class WhatsappController {
    * Enviar mensaje de texto por WhatsApp
    */
   @Post('send')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
   @HttpCode(200)
   @ApiOperation({
     summary: 'Enviar mensaje de texto',
