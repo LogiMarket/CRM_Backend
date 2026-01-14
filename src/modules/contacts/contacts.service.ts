@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Contact } from './entities/contact.entity';
@@ -38,7 +38,7 @@ export class ContactsService {
     if (!contact) {
       contact = await this.create({
         phone_number: phoneNumber,
-        name: phoneNumber, // Usar el teléfono como nombre inicial
+        name: phoneNumber, // Usar el tel�fono como nombre inicial
       });
     }
     return contact;
@@ -51,7 +51,7 @@ export class ContactsService {
 
   async updateLastSeen(id: string) {
     await this.contactRepository.update(id, {
-      last_seen_at: new Date(),
+      last_seen: new Date(),
     } as any);
   }
 
