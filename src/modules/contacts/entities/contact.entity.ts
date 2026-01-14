@@ -1,4 +1,4 @@
-﻿import {
+import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -14,7 +14,7 @@ export class Contact {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 20, unique: true })
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
   phone_number: string;
 
   @Column({ type: 'varchar', length: 255 })
