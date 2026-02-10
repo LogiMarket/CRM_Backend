@@ -8,9 +8,11 @@ import { MessagesService } from '../messages/messages.service';
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
-  private readonly twilioClient: any;
-  private readonly twilioPhoneNumber: string;
+  private readonly twilioClient: any | null = null;
+  private readonly twilioPhoneNumber: string | null = null;
   private readonly webhookToken: string;
+  private readonly cloudAccessToken: string | null = null;
+  private readonly cloudPhoneNumberId: string | null = null;
 
   constructor(
     private configService: ConfigService,
@@ -20,14 +22,17 @@ export class WhatsappService {
   ) {
     const accountSid = configService.get('TWILIO_ACCOUNT_SID');
     const authToken = configService.get('TWILIO_AUTH_TOKEN');
+    this.webhookToken = configService.get('TWILIO_WEBHOOK_TOKEN') || 'default-token';
 
-    if (!accountSid || !authToken) {
-      throw new Error('TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required');
+    if (accountSid && authToken) {
+      this.twilioClient = twilio(accountSid, authToken);
+      this.twilioPhoneNumber = configService.get('TWILIO_PHONE_NUMBER') || '+1234567890';
+    } else {
+      this.logger.warn('Twilio credentials not configured. Twilio features disabled.');
     }
 
-    this.twilioClient = twilio(accountSid, authToken);
-    this.twilioPhoneNumber = configService.get('TWILIO_PHONE_NUMBER') || '+1234567890';
-    this.webhookToken = configService.get('TWILIO_WEBHOOK_TOKEN') || 'default-token';
+    this.cloudAccessToken = configService.get('WHATSAPP_ACCESS_TOKEN') || null;
+    this.cloudPhoneNumberId = configService.get('WHATSAPP_PHONE_NUMBER_ID') || null;
   }
 
   validateWebhookToken(token: string): boolean {
@@ -36,12 +41,17 @@ export class WhatsappService {
 
   async handleWebhook(body: any): Promise<void> {
     try {
+      if (body?.object === 'whatsapp_business_account' || body?.entry?.length) {
+        await this.handleCloudWebhook(body);
+        return;
+      }
+
       const messageBody = body.Body;
       const senderPhoneNumber = body.From;
       const messageId = body.MessageSid;
       const accountId = body.AccountSid;
 
-      if (accountId !== this.configService.get('TWILIO_ACCOUNT_SID')) {
+      if (accountId && accountId !== this.configService.get('TWILIO_ACCOUNT_SID')) {
         this.logger.warn('Invalid account ID in webhook');
         return;
       }
@@ -54,6 +64,45 @@ export class WhatsappService {
       await this.processIncomingMessage(messageBody, senderPhoneNumber, messageId);
     } catch (error) {
       this.logger.error('Error processing webhook:', error);
+    }
+  }
+
+  async handleCloudWebhook(body: any): Promise<void> {
+    try {
+      for (const entry of body?.entry || []) {
+        for (const change of entry?.changes || []) {
+          const value = change?.value;
+          const contacts = value?.contacts || [];
+          const contactMap = new Map<string, string>();
+
+          for (const contact of contacts) {
+            const waId = contact?.wa_id;
+            const name = contact?.profile?.name;
+            if (waId) {
+              contactMap.set(waId, name || `WhatsApp ${String(waId).slice(-6)}`);
+            }
+          }
+
+          for (const message of value?.messages || []) {
+            const senderId = message.from;
+            const messageId = message.id;
+            const messageText = this.getCloudMessageText(message);
+
+            if (!senderId || !messageId) {
+              continue;
+            }
+
+            const normalizedPhone = this.normalizePhoneNumber(senderId);
+            await this.processIncomingMessage(
+              messageText,
+              `whatsapp:+${normalizedPhone}`,
+              messageId,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error processing Cloud webhook:', error);
     }
   }
 
@@ -101,9 +150,49 @@ export class WhatsappService {
     message: string,
   ): Promise<{ success: boolean; whatsapp_message_id?: string; error?: string }> {
     try {
+      const cleanPhone = this.normalizePhoneNumber(phoneNumber);
+
+      if (this.cloudAccessToken && this.cloudPhoneNumberId) {
+        const response = await fetch(
+          `https://graph.facebook.com/v19.0/${this.cloudPhoneNumberId}/messages`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.cloudAccessToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: cleanPhone,
+              type: 'text',
+              text: { body: message },
+            }),
+          },
+        );
+
+        const data: any = await response.json();
+        if (!response.ok) {
+          return {
+            success: false,
+            error: data?.error?.message || 'Failed to send message via Cloud API',
+          };
+        }
+
+        return {
+          success: true,
+          whatsapp_message_id: data?.messages?.[0]?.id,
+        };
+      }
+
+      if (!this.twilioClient || !this.twilioPhoneNumber) {
+        return {
+          success: false,
+          error: 'Twilio not configured and Cloud API not configured',
+        };
+      }
+
       let formattedPhone = phoneNumber;
       if (!formattedPhone.startsWith('whatsapp:+')) {
-        const cleanPhone = formattedPhone.replace(/\D/g, '');
         formattedPhone = `whatsapp:+${cleanPhone}`;
       }
 
@@ -130,6 +219,9 @@ export class WhatsappService {
 
   async healthCheck(): Promise<{ status: string }> {
     try {
+      if (this.cloudAccessToken && this.cloudPhoneNumberId) {
+        return { status: 'Cloud API configured' };
+      }
       const accountSid = this.configService.get('TWILIO_ACCOUNT_SID');
       if (!accountSid) {
         return { status: 'Twilio not configured' };
@@ -169,6 +261,9 @@ export class WhatsappService {
 
   async getMessageStatus(messageId: string): Promise<{ status: string }> {
     try {
+      if (!this.twilioClient) {
+        return { status: 'unknown' };
+      }
       const message = await this.twilioClient.messages(messageId).fetch();
       return { status: message.status };
     } catch (error: any) {
@@ -179,11 +274,32 @@ export class WhatsappService {
 
   async getPhoneNumbers(): Promise<any[]> {
     try {
+      if (!this.twilioClient) {
+        return [];
+      }
       const phoneNumbers = await this.twilioClient.incomingPhoneNumbers.list();
       return phoneNumbers;
     } catch (error: any) {
       this.logger.error('Error getting phone numbers:', error);
       return [];
     }
+  }
+
+  private getCloudMessageText(message: any): string {
+    if (!message) return '';
+    if (message.text?.body) return message.text.body;
+    if (message.button?.text) return message.button.text;
+    if (message.interactive?.button_reply?.title) {
+      return message.interactive.button_reply.title;
+    }
+    if (message.interactive?.list_reply?.title) {
+      return message.interactive.list_reply.title;
+    }
+    if (message.type) return `[${message.type} mensaje]`;
+    return '';
+  }
+
+  private normalizePhoneNumber(value: string): string {
+    return String(value).replace('whatsapp:', '').replace(/\D/g, '');
   }
 }

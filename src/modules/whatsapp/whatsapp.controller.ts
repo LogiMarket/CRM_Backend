@@ -6,7 +6,10 @@ import {
   Query,
   UseGuards,
   HttpCode,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { WhatsappService } from './whatsapp.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -19,21 +22,46 @@ import {
   ApiHeader,
 } from '@nestjs/swagger';
 
-@ApiTags('WhatsApp - Twilio Integration')
+@ApiTags('WhatsApp - Twilio/Cloud Integration')
 @Controller('whatsapp')
 export class WhatsappController {
-  constructor(private whatsappService: WhatsappService) {}
+  constructor(
+    private whatsappService: WhatsappService,
+    private configService: ConfigService,
+  ) {}
 
   /**
    * Webhook para recibir mensajes desde Twilio
    */
+  @Get('webhook')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Verificar webhook de WhatsApp Cloud API',
+    description:
+      'Endpoint de verificación de Meta (hub.challenge). Se usa al guardar el webhook en el panel de Meta.',
+  })
+  @ApiQuery({ name: 'hub.mode', required: false })
+  @ApiQuery({ name: 'hub.verify_token', required: false })
+  @ApiQuery({ name: 'hub.challenge', required: false })
+  async verifyWebhook(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+  ) {
+    const verifyToken = this.configService.get<string>('WHATSAPP_VERIFY_TOKEN');
+    if (mode === 'subscribe' && token && verifyToken && token === verifyToken) {
+      return challenge;
+    }
+    throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+  }
+
   @Post('webhook')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Recibir mensajes de WhatsApp',
     description:
-      'Endpoint webhook que recibe mensajes desde Twilio. Se configura en Twilio Dashboard → Messaging → Settings. ' +
-      'Twilio envía datos en formato form-encoded, NO JSON.',
+      'Endpoint webhook para Twilio y WhatsApp Cloud API. ' +
+      'Twilio envía datos en formato form-encoded, Cloud API envía JSON.',
   })
   @ApiBody({
     schema: {
