@@ -148,7 +148,13 @@ export class WhatsappService {
   async sendMessage(
     phoneNumber: string,
     message: string,
-  ): Promise<{ success: boolean; whatsapp_message_id?: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    whatsapp_message_id?: string;
+    error?: string;
+    error_code?: number;
+    hint?: string;
+  }> {
     try {
       const cleanPhone = this.normalizePhoneNumber(phoneNumber);
 
@@ -172,9 +178,28 @@ export class WhatsappService {
 
         const data: any = await response.json();
         if (!response.ok) {
+          const errorCode = Number(data?.error?.code);
+          const errorMessage =
+            data?.error?.message || 'Failed to send message via Cloud API';
+          const errorDetails = data?.error?.error_data?.details;
+
+          // Meta WhatsApp Cloud API dev-mode restriction
+          const isNotAllowedList =
+            errorCode === 131030 ||
+            /not in allowed list/i.test(String(errorMessage)) ||
+            /131030/.test(String(errorMessage));
+
+          const hint = isNotAllowedList
+            ? 'Tu app/WhatsApp Cloud API está en modo desarrollo: solo puedes enviar a números agregados como destinatarios de prueba (Allowed recipients/Test numbers) en Meta Developer > WhatsApp > API Setup. Agrega el número (E.164), completa el opt-in (código de prueba) y reintenta. Para enviar a cualquier número necesitas pasar a producción.'
+            : undefined;
+
           return {
             success: false,
-            error: data?.error?.message || 'Failed to send message via Cloud API',
+            error: errorDetails
+              ? `${errorMessage} (${errorDetails})`
+              : errorMessage,
+            error_code: Number.isFinite(errorCode) ? errorCode : undefined,
+            hint,
           };
         }
 
