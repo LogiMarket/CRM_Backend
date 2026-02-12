@@ -13,6 +13,7 @@ export class WhatsappService {
   private readonly webhookToken: string;
   private readonly cloudAccessToken: string | null = null;
   private readonly cloudPhoneNumberId: string | null = null;
+  private readonly cloudWabaId: string | null = null;
   private readonly cloudTemplateLanguage: string;
 
   constructor(
@@ -34,6 +35,7 @@ export class WhatsappService {
 
     this.cloudAccessToken = configService.get('WHATSAPP_ACCESS_TOKEN') || null;
     this.cloudPhoneNumberId = configService.get('WHATSAPP_PHONE_NUMBER_ID') || null;
+    this.cloudWabaId = configService.get('WHATSAPP_WABA_ID') || null;
     this.cloudTemplateLanguage =
       configService.get('WHATSAPP_TEMPLATE_LANGUAGE') || 'es_MX';
   }
@@ -381,6 +383,10 @@ export class WhatsappService {
       /template/i.test(String(errorMessage)) ||
       /outside the 24/i.test(String(errorMessage));
 
+    // Misconfiguration: using WABA ID where Phone Number ID is required
+    const isUnsupportedPostRequest =
+      errorCode === 100 && /Unsupported post request/i.test(String(errorMessage));
+
     let hint: string | undefined;
     if (isNotAllowedList) {
       hint =
@@ -391,6 +397,12 @@ export class WhatsappService {
       if (context?.templateName || context?.language) {
         hint += ` (template=${context?.templateName || 'N/A'}, language=${context?.language || 'N/A'})`;
       }
+    } else if (isUnsupportedPostRequest) {
+      const maybeUsingWabaAsPhoneId =
+        Boolean(this.cloudWabaId) && this.cloudPhoneNumberId === this.cloudWabaId;
+      hint = maybeUsingWabaAsPhoneId
+        ? 'Parece que configuraste WHATSAPP_PHONE_NUMBER_ID con el WABA ID. Para enviar mensajes debes usar el Phone Number ID (Identificador de número de teléfono) del panel de WhatsApp > API Setup. Actualiza la variable en Railway y reinicia el servicio.'
+        : 'Error 100 (Unsupported post request). Verifica que WHATSAPP_PHONE_NUMBER_ID sea el Phone Number ID (no el WABA ID) y que el access token tenga permisos whatsapp_business_messaging + whatsapp_business_management para esa cuenta.';
     }
 
     const finalMessageParts = [errorMessage];
