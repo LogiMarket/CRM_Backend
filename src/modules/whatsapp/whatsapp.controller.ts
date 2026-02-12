@@ -4,14 +4,21 @@ import {
   Get,
   Body,
   Query,
+  Param,
   UseGuards,
+  UseInterceptors,
   HttpCode,
   HttpException,
   HttpStatus,
+  UploadedFile,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WhatsappService } from './whatsapp.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -20,6 +27,7 @@ import {
   ApiBody,
   ApiQuery,
   ApiHeader,
+  ApiConsumes,
 } from '@nestjs/swagger';
 
 @ApiTags('WhatsApp - Twilio/Cloud Integration')
@@ -256,6 +264,105 @@ export class WhatsappController {
       body.template_name,
       body.parameters,
     );
+  }
+
+  /**
+   * Enviar mensaje con media (Cloud API)
+   */
+  @Post('send-media')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Enviar media (imagen/documento/audio/video/sticker)',
+    description:
+      'Envía un archivo como media usando WhatsApp Cloud API. ' +
+      'Requiere WHATSAPP_ACCESS_TOKEN y WHATSAPP_PHONE_NUMBER_ID configurados. ' +
+      'El archivo se sube primero a /{phone_number_id}/media y luego se envía el mensaje referenciando el media_id.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        phone_number: {
+          type: 'string',
+          example: '+5215548780484',
+          description: 'Número del destinatario (E.164)',
+        },
+        type: {
+          type: 'string',
+          enum: ['image', 'document', 'audio', 'video', 'sticker'],
+          example: 'image',
+        },
+        caption: { type: 'string', example: 'Mira esto' },
+        filename: { type: 'string', example: 'archivo.pdf' },
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['phone_number', 'type', 'file'],
+    },
+  })
+  async sendMedia(
+    @UploadedFile() file: any,
+    @Body()
+    body: {
+      phone_number: string;
+      type: 'image' | 'document' | 'audio' | 'video' | 'sticker';
+      caption?: string;
+      filename?: string;
+    },
+  ) {
+    if (!file?.buffer?.length) {
+      throw new HttpException('file is required', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.whatsappService.sendMediaMessage(body.phone_number, {
+      type: body.type,
+      fileBuffer: file.buffer,
+      mimeType: file.mimetype,
+      filename: body.filename || file.originalname,
+      caption: body.caption,
+    });
+  }
+
+  /**
+   * Descargar/visualizar media desde WhatsApp Cloud API (proxy)
+   */
+  @Get('media/:mediaId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Descargar/visualizar media (proxy Cloud API)',
+    description:
+      'Dado un media_id de WhatsApp Cloud API, obtiene la URL de descarga y hace proxy del binario. ' +
+      'Útil para mostrar imágenes/documentos/audios/videos/stickers en el CRM sin exponer el access token.',
+  })
+  @ApiQuery({
+    name: 'filename',
+    required: false,
+    description: 'Nombre sugerido para Content-Disposition',
+    example: 'archivo.pdf',
+  })
+  @ApiResponse({ status: 200, description: 'Binario del media' })
+  async downloadMedia(
+    @Param('mediaId') mediaId: string,
+    @Query('filename') filename: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.whatsappService.downloadCloudMedia(mediaId, {
+      filename,
+    });
+
+    if (result.contentType) {
+      res.setHeader('Content-Type', result.contentType);
+    }
+    if (result.contentDisposition) {
+      res.setHeader('Content-Disposition', result.contentDisposition);
+    }
+
+    return new StreamableFile(result.stream);
   }
 
   /**

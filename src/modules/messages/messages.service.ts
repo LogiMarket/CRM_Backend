@@ -12,36 +12,59 @@ export class MessagesService {
     private messageRepository: Repository<Message>,
   ) {}
 
+  private attachMediaProxyUrl<T extends Message | null | undefined>(message: T): any {
+    if (!message) return message;
+    const mediaId = (message as any).media_id as string | undefined;
+    if (!mediaId) return message;
+
+    const filename = ((message as any).media_filename as string | undefined) || '';
+
+    let mediaProxyUrl = `/api/whatsapp/media/${encodeURIComponent(mediaId)}`;
+    if (filename.trim().length > 0) {
+      mediaProxyUrl += `?filename=${encodeURIComponent(filename)}`;
+    }
+
+    return {
+      ...(message as any),
+      media_proxy_url: mediaProxyUrl,
+    };
+  }
+
   async create(createMessageDto: CreateMessageDto) {
     const message = this.messageRepository.create(createMessageDto as any);
-    return this.messageRepository.save(message);
+    const saved = await this.messageRepository.save(message);
+    return this.attachMediaProxyUrl(saved);
   }
 
   async findAll() {
-    return this.messageRepository.find({
+    const messages = await this.messageRepository.find({
       relations: ['conversation', 'sender'],
     });
+    return messages.map(m => this.attachMediaProxyUrl(m));
   }
 
   async findOne(id: string) {
-    return this.messageRepository.findOne({
+    const message = await this.messageRepository.findOne({
       where: { id },
       relations: ['conversation', 'sender'],
     });
+    return this.attachMediaProxyUrl(message);
   }
 
   async findByConversation(conversationId: string) {
-    return this.messageRepository.find({
+    const messages = await this.messageRepository.find({
       where: { conversation_id: conversationId },
       relations: ['sender'],
       order: { created_at: 'ASC' },
     });
+    return messages.map(m => this.attachMediaProxyUrl(m));
   }
 
   async update(id: string, updateMessageDto: UpdateMessageDto) {
     const updateData = this.messageRepository.create(updateMessageDto as any);
     await this.messageRepository.update(id, updateData as any);
-    return this.findOne(id);
+    const message = await this.findOne(id);
+    return this.attachMediaProxyUrl(message as any);
   }
 
   async remove(id: string) {
