@@ -345,6 +345,12 @@ export class WhatsappController {
     description: 'Nombre sugerido para Content-Disposition',
     example: 'archivo.pdf',
   })
+  @ApiQuery({
+    name: 'token',
+    required: false,
+    description:
+      'JWT opcional por query param. Útil para renderizar media en <img src>/<a href> cuando no se puede enviar Authorization header.',
+  })
   @ApiResponse({ status: 200, description: 'Binario del media' })
   async downloadMedia(
     @Param('mediaId') mediaId: string,

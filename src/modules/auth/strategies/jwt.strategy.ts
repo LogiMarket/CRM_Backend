@@ -13,7 +13,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: any) => {
+          const token = req?.query?.token;
+          if (!token) return null;
+          if (Array.isArray(token)) return token[0] || null;
+          if (typeof token === 'string') {
+            const trimmed = token.trim();
+            return trimmed ? trimmed : null;
+          }
+          return null;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: secret,
     });
