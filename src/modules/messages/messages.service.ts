@@ -12,12 +12,21 @@ export class MessagesService {
     private messageRepository: Repository<Message>,
   ) {}
 
-  private attachMediaProxyUrl<T extends Message | null | undefined>(message: T): any {
-    if (!message) return message;
-    const mediaId = (message as any).media_id as string | undefined;
-    if (!mediaId) return message;
+  private attachMediaProxyUrl(message: Message): any;
+  private attachMediaProxyUrl(messages: Message[]): any[];
+  private attachMediaProxyUrl(
+    messageOrMessages: Message | Message[] | null | undefined,
+  ): any {
+    if (!messageOrMessages) return messageOrMessages;
+    if (Array.isArray(messageOrMessages)) {
+      return messageOrMessages.map((m) => this.attachMediaProxyUrl(m));
+    }
 
-    const filename = ((message as any).media_filename as string | undefined) || '';
+    const mediaId = (messageOrMessages as any).media_id as string | undefined;
+    if (!mediaId) return messageOrMessages;
+
+    const filename =
+      ((messageOrMessages as any).media_filename as string | undefined) || '';
 
     let mediaProxyUrl = `/api/whatsapp/media/${encodeURIComponent(mediaId)}`;
     if (filename.trim().length > 0) {
@@ -25,7 +34,7 @@ export class MessagesService {
     }
 
     return {
-      ...(message as any),
+      ...(messageOrMessages as any),
       media_proxy_url: mediaProxyUrl,
     };
   }
