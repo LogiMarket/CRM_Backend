@@ -13,6 +13,7 @@ export class WhatsappService {
   private readonly webhookToken: string;
   private readonly cloudAccessToken: string | null = null;
   private readonly cloudPhoneNumberId: string | null = null;
+  private readonly cloudTemplateLanguage: string;
 
   constructor(
     private configService: ConfigService,
@@ -33,6 +34,8 @@ export class WhatsappService {
 
     this.cloudAccessToken = configService.get('WHATSAPP_ACCESS_TOKEN') || null;
     this.cloudPhoneNumberId = configService.get('WHATSAPP_PHONE_NUMBER_ID') || null;
+    this.cloudTemplateLanguage =
+      configService.get('WHATSAPP_TEMPLATE_LANGUAGE') || 'es_MX';
   }
 
   validateWebhookToken(token: string): boolean {
@@ -159,54 +162,7 @@ export class WhatsappService {
       const cleanPhone = this.normalizePhoneNumber(phoneNumber);
 
       if (this.cloudAccessToken && this.cloudPhoneNumberId) {
-        const response = await fetch(
-          `https://graph.facebook.com/v19.0/${this.cloudPhoneNumberId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.cloudAccessToken}`,
-            },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: cleanPhone,
-              type: 'text',
-              text: { body: message },
-            }),
-          },
-        );
-
-        const data: any = await response.json();
-        if (!response.ok) {
-          const errorCode = Number(data?.error?.code);
-          const errorMessage =
-            data?.error?.message || 'Failed to send message via Cloud API';
-          const errorDetails = data?.error?.error_data?.details;
-
-          // Meta WhatsApp Cloud API dev-mode restriction
-          const isNotAllowedList =
-            errorCode === 131030 ||
-            /not in allowed list/i.test(String(errorMessage)) ||
-            /131030/.test(String(errorMessage));
-
-          const hint = isNotAllowedList
-            ? 'Tu app/WhatsApp Cloud API está en modo desarrollo: solo puedes enviar a números agregados como destinatarios de prueba (Allowed recipients/Test numbers) en Meta Developer > WhatsApp > API Setup. Agrega el número (E.164), completa el opt-in (código de prueba) y reintenta. Para enviar a cualquier número necesitas pasar a producción.'
-            : undefined;
-
-          return {
-            success: false,
-            error: errorDetails
-              ? `${errorMessage} (${errorDetails})`
-              : errorMessage,
-            error_code: Number.isFinite(errorCode) ? errorCode : undefined,
-            hint,
-          };
-        }
-
-        return {
-          success: true,
-          whatsapp_message_id: data?.messages?.[0]?.id,
-        };
+        return this.sendCloudTextMessage(cleanPhone, message);
       }
 
       if (!this.twilioClient || !this.twilioPhoneNumber) {
@@ -262,17 +218,27 @@ export class WhatsappService {
     phoneNumber: string,
     templateName: string,
     variables?: string[] | Record<string, string>,
-  ): Promise<{ success: boolean; whatsapp_message_id?: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    whatsapp_message_id?: string;
+    error?: string;
+    error_code?: number;
+    hint?: string;
+  }> {
     try {
+      const cleanPhone = this.normalizePhoneNumber(phoneNumber);
+
+      // Para producción (fuera de ventana 24h) WhatsApp exige templates.
+      if (this.cloudAccessToken && this.cloudPhoneNumberId) {
+        const parameters = this.normalizeTemplateVariables(variables);
+        return this.sendCloudTemplateMessage(cleanPhone, templateName, parameters);
+      }
+
+      // Fallback (Twilio o no configurado): se envía como texto plano.
       let message = templateName;
-      if (variables) {
-        if (Array.isArray(variables)) {
-          message = templateName.replace(/\{(\d+)\}/g, (match, index) => variables[parseInt(index)] || match);
-        } else {
-          Object.keys(variables).forEach(key => {
-            message = message.replace(`{${key}}`, variables[key]);
-          });
-        }
+      const params = this.normalizeTemplateVariables(variables);
+      if (params.length > 0) {
+        message = `${templateName} ${params.join(' ')}`;
       }
       return this.sendMessage(phoneNumber, message);
     } catch (error: any) {
@@ -282,6 +248,161 @@ export class WhatsappService {
         error: error.message || 'Failed to send template message',
       };
     }
+  }
+
+  private normalizeTemplateVariables(
+    variables?: string[] | Record<string, string>,
+  ): string[] {
+    if (!variables) return [];
+    if (Array.isArray(variables)) return variables.map(v => String(v));
+    return Object.keys(variables)
+      .sort()
+      .map(k => String(variables[k]));
+  }
+
+  private async sendCloudTextMessage(
+    cleanPhone: string,
+    message: string,
+  ): Promise<{
+    success: boolean;
+    whatsapp_message_id?: string;
+    error?: string;
+    error_code?: number;
+    hint?: string;
+  }> {
+    const response = await fetch(
+      `https://graph.facebook.com/v19.0/${this.cloudPhoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.cloudAccessToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanPhone,
+          type: 'text',
+          text: { body: message },
+        }),
+      },
+    );
+
+    const data: any = await response.json();
+    if (!response.ok) {
+      return this.formatCloudApiError(data);
+    }
+
+    return {
+      success: true,
+      whatsapp_message_id: data?.messages?.[0]?.id,
+    };
+  }
+
+  private async sendCloudTemplateMessage(
+    cleanPhone: string,
+    templateName: string,
+    parameters: string[],
+  ): Promise<{
+    success: boolean;
+    whatsapp_message_id?: string;
+    error?: string;
+    error_code?: number;
+    hint?: string;
+  }> {
+    const body: any = {
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: this.cloudTemplateLanguage },
+      },
+    };
+
+    if (parameters.length > 0) {
+      body.template.components = [
+        {
+          type: 'body',
+          parameters: parameters.map(text => ({ type: 'text', text })),
+        },
+      ];
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v19.0/${this.cloudPhoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.cloudAccessToken}`,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const data: any = await response.json();
+    if (!response.ok) {
+      return this.formatCloudApiError(data, {
+        templateName,
+        language: this.cloudTemplateLanguage,
+      });
+    }
+
+    return {
+      success: true,
+      whatsapp_message_id: data?.messages?.[0]?.id,
+    };
+  }
+
+  private formatCloudApiError(
+    data: any,
+    context?: { templateName?: string; language?: string },
+  ): {
+    success: false;
+    error: string;
+    error_code?: number;
+    hint?: string;
+  } {
+    const errorCode = Number(data?.error?.code);
+    const errorMessage =
+      data?.error?.message || 'Failed to send message via Cloud API';
+    const errorDetails = data?.error?.error_data?.details;
+    const errorType = data?.error?.type;
+
+    // Dev-mode restriction
+    const isNotAllowedList =
+      errorCode === 131030 ||
+      /not in allowed list/i.test(String(errorMessage)) ||
+      /131030/.test(String(errorMessage));
+
+    // Out of 24h window / requires template
+    const isRequiresTemplate =
+      errorCode === 470 ||
+      /template/i.test(String(errorMessage)) ||
+      /outside the 24/i.test(String(errorMessage));
+
+    let hint: string | undefined;
+    if (isNotAllowedList) {
+      hint =
+        'Tu app/WhatsApp Cloud API está en modo desarrollo: solo puedes enviar a números agregados como destinatarios de prueba (Allowed recipients/Test numbers) en Meta Developer > WhatsApp > API Setup. Agrega el número (E.164), completa el opt-in y reintenta. Para enviar a cualquier número necesitas pasar a producción.';
+    } else if (isRequiresTemplate) {
+      hint =
+        'WhatsApp restringe mensajes fuera de la ventana de 24h: debes enviar un template aprobado. Usa el endpoint /api/whatsapp/send-template con un template existente y el language correcto.';
+      if (context?.templateName || context?.language) {
+        hint += ` (template=${context?.templateName || 'N/A'}, language=${context?.language || 'N/A'})`;
+      }
+    }
+
+    const finalMessageParts = [errorMessage];
+    if (errorDetails) finalMessageParts.push(String(errorDetails));
+    if (errorType) finalMessageParts.push(`type=${String(errorType)}`);
+
+    return {
+      success: false,
+      error: finalMessageParts.join(' | '),
+      error_code: Number.isFinite(errorCode) ? errorCode : undefined,
+      hint,
+    };
   }
 
   async getMessageStatus(messageId: string): Promise<{ status: string }> {

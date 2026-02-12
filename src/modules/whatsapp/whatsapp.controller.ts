@@ -204,9 +204,9 @@ export class WhatsappController {
   @ApiOperation({
     summary: 'Enviar mensaje con plantilla',
     description:
-      'Envía un mensaje formateado usando un nombre de plantilla y parámetros. ' +
-      'Útil para mensajes repetitivos como confirmaciones, recordatorios, etc. ' +
-      'Por ahora, concatena el template_name con los parámetros.',
+      'Envía un mensaje usando un template. ' +
+      'Si WHATSAPP_ACCESS_TOKEN y WHATSAPP_PHONE_NUMBER_ID están configurados, se envía como template real de WhatsApp Cloud API (requerido fuera de la ventana de 24h). ' +
+      'Si no, hace fallback y envía texto plano (Twilio o sin Cloud API).',
   })
   @ApiBody({
     schema: {
