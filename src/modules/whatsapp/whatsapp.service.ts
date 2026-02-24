@@ -431,19 +431,46 @@ export class WhatsappService {
     try {
       const cleanPhone = this.normalizePhoneNumber(phoneNumber);
 
-      // Para producción (fuera de ventana 24h) WhatsApp exige templates.
+      // Si Cloud API está configurada, usa Meta
       if (this.cloudAccessToken && this.cloudPhoneNumberId) {
         const parameters = this.normalizeTemplateVariables(variables);
         return this.sendCloudTemplateMessage(cleanPhone, templateName, parameters);
       }
 
-      // Fallback (Twilio o no configurado): se envía como texto plano.
-      let message = templateName;
-      const params = this.normalizeTemplateVariables(variables);
-      if (params.length > 0) {
-        message = `${templateName} ${params.join(' ')}`;
+      // Si Twilio está configurado, usa plantilla con contentSid
+      if (this.twilioClient && this.twilioPhoneNumber) {
+        let formattedPhone = phoneNumber;
+        if (!formattedPhone.startsWith('whatsapp:+')) {
+          formattedPhone = `whatsapp:+${cleanPhone}`;
+        }
+        // contentSid = SID de la plantilla, contentVariables = parámetros
+        try {
+          const response = await this.twilioClient.messages.create({
+            from: `whatsapp:${this.twilioPhoneNumber}`,
+            to: formattedPhone,
+            contentSid: templateName, // Aquí va el SID
+            contentVariables: variables ? JSON.stringify(variables) : undefined,
+          });
+          this.logger.log(`Twilio template sent to ${phoneNumber}, SID: ${response.sid}`);
+          this.logger.log('Twilio full response:', response);
+          return {
+            success: true,
+            whatsapp_message_id: response.sid,
+          };
+        } catch (error: any) {
+          this.logger.error('Error sending Twilio template:', error);
+          return {
+            success: false,
+            error: error.message || 'Failed to send Twilio template',
+          };
+        }
       }
-      return this.sendMessage(phoneNumber, message);
+
+      // Si nada configurado, error
+      return {
+        success: false,
+        error: 'No WhatsApp provider configured (Cloud API ni Twilio)',
+      };
     } catch (error: any) {
       this.logger.error('Error sending template message:', error);
       return {
