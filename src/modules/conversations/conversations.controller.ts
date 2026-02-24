@@ -1,3 +1,5 @@
+import { MessagesService } from '../messages/messages.service';
+import { CreateMessageDto } from '../messages/dto/create-message.dto';
 import {
   Controller,
   Get,
@@ -18,7 +20,36 @@ import { Roles } from '../../decorators/roles.decorator';
 
 @Controller('conversations')
 export class ConversationsController {
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(
+    private readonly conversationsService: ConversationsService,
+    private readonly messagesService: MessagesService,
+  ) {}
+  // Obtener mensajes de una conversación (RESTful nested)
+  @Get(':id/messages')
+  @UseGuards(JwtAuthGuard)
+  async getMessages(@Param('id') id: string) {
+    return this.messagesService.findByConversation(id);
+  }
+
+  // Crear mensaje en una conversación (RESTful nested)
+  @Post(':id/messages')
+  @UseGuards(JwtAuthGuard)
+  async createMessage(
+    @Param('id') id: string,
+    @Body(ValidationPipe) body: Omit<CreateMessageDto, 'conversation_id'>,
+    @Req() req: any,
+  ) {
+    // Asignar conversation_id y sender_type automáticamente
+    const user = req.user;
+    const sender_type = user?.role === 'agent' ? 'user' : 'contact';
+    const sender_id = user?.id;
+    return this.messagesService.create({
+      ...body,
+      conversation_id: id,
+      sender_type,
+      sender_id,
+    });
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)
